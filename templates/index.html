@@ -10,35 +10,19 @@
     <script>
         const UPDATE_INTERVAL = 100; // 100ms
 
-        let gameChart, team1Chart, team2Chart;
+        let gameCanvas, gameCtx, heatmapCanvas, heatmapCtx;
+        let team1Chart, team2Chart;
         let showHeatmap = false;
-        let heatmapCanvas, heatmapCtx;
 
         function initCharts() {
-            const gameCtx = document.getElementById('game-view').getContext('2d');
-            gameChart = new Chart(gameCtx, {
-                type: 'scatter',
-                data: {
-                    datasets: [{
-                        data: [],
-                        pointBackgroundColor: [],
-                        pointRadius: 10,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: { enabled: false }
-                    },
-                    animation: false,
-                    scales: {
-                        x: { min: 0, max: 19, ticks: { display: false } },
-                        y: { min: 0, max: 9, ticks: { display: false }, reverse: true }
-                    }
-                }
-            });
+            gameCanvas = document.getElementById('game-view');
+            gameCtx = gameCanvas.getContext('2d');
+            heatmapCanvas = document.getElementById('heatmap-canvas');
+            heatmapCtx = heatmapCanvas.getContext('2d');
+
+            // Ensure canvases are sized correctly
+            resizeCanvases();
+            window.addEventListener('resize', resizeCanvases);
 
             const team1Ctx = document.getElementById('nn1-view').getContext('2d');
             team1Chart = new Chart(team1Ctx, {
@@ -77,31 +61,68 @@
                     animation: false
                 }
             });
+        }
 
-            // Initialize heatmap canvas
-            heatmapCanvas = document.getElementById('heatmap-canvas');
-            heatmapCtx = heatmapCanvas.getContext('2d');
+        function resizeCanvases() {
+            const container = document.getElementById('game-view-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            gameCanvas.width = width;
+            gameCanvas.height = height;
+            heatmapCanvas.width = width;
+            heatmapCanvas.height = height;
         }
 
         function updateGameView(gameState, heatmapData) {
             const grid = gameState.grid;
-            const data = [];
-            const colors = [];
+            const cellWidth = gameCanvas.width / grid[0].length;
+            const cellHeight = gameCanvas.height / grid.length;
+
+            gameCtx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+
             for (let i = 0; i < grid.length; i++) {
                 for (let j = 0; j < grid[i].length; j++) {
-                    data.push({ x: j, y: i });
+                    const x = j * cellWidth;
+                    const y = i * cellHeight;
+
                     switch (grid[i][j]) {
-                        case 0: colors.push('rgba(0, 0, 0, 0.1)'); break; // Empty
-                        case 1: colors.push('rgba(128, 128, 128, 1)'); break; // Obstacle
-                        case 2: colors.push('rgba(0, 0, 255, 1)'); break; // Team 1
-                        case 3: colors.push('rgba(255, 0, 0, 1)'); break; // Flag
-                        case 4: colors.push('rgba(0, 255, 0, 1)'); break; // Team 2
+                        case 0: // Empty
+                            gameCtx.fillStyle = '#2a2a2a';
+                            gameCtx.fillRect(x, y, cellWidth, cellHeight);
+                            break;
+                        case 1: // Obstacle
+                            gameCtx.fillStyle = '#555555';
+                            gameCtx.fillRect(x, y, cellWidth, cellHeight);
+                            break;
+                        case 2: // Team 1
+                            gameCtx.fillStyle = '#4fc3f7';
+                            gameCtx.beginPath();
+                            gameCtx.arc(x + cellWidth / 2, y + cellHeight / 2, Math.min(cellWidth, cellHeight) / 2 * 0.8, 0, Math.PI * 2);
+                            gameCtx.fill();
+                            break;
+                        case 3: // Flag
+                            gameCtx.fillStyle = '#ff5722';
+                            gameCtx.beginPath();
+                            gameCtx.moveTo(x + cellWidth / 2, y);
+                            gameCtx.lineTo(x + cellWidth, y + cellHeight);
+                            gameCtx.lineTo(x, y + cellHeight);
+                            gameCtx.closePath();
+                            gameCtx.fill();
+                            break;
+                        case 4: // Team 2
+                            gameCtx.fillStyle = '#ff4081';
+                            gameCtx.beginPath();
+                            gameCtx.arc(x + cellWidth / 2, y + cellHeight / 2, Math.min(cellWidth, cellHeight) / 2 * 0.8, 0, Math.PI * 2);
+                            gameCtx.fill();
+                            break;
                     }
+
+                    // Draw grid lines
+                    gameCtx.strokeStyle = '#1e1e1e';
+                    gameCtx.strokeRect(x, y, cellWidth, cellHeight);
                 }
             }
-            gameChart.data.datasets[0].data = data;
-            gameChart.data.datasets[0].pointBackgroundColor = colors;
-            gameChart.update();
 
             if (showHeatmap) {
                 drawSimpleHeatmap(grid, heatmapData);
@@ -145,6 +166,7 @@
                 }
             }
         }
+
         function clearHeatmap() {
             heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
         }
