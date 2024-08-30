@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Capture the Flag AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script>
+        function refreshImages() {
+            document.getElementById('game-view-img').src = "{{ url_for('game_view') }}" + "?t=" + new Date().getTime();
+            document.getElementById('nn1-view-img').src = "{{ url_for('nn1_training') }}" + "?t=" + new Date().getTime();
+            document.getElementById('nn2-view-img').src = "{{ url_for('nn2_training') }}" + "?t=" + new Date().getTime();
+        }
+        setInterval(refreshImages, 2000);  // Refresh every 2 seconds
+    </script>
+</head>
+
+<body>
+    <div id="navbar">
+        <h1>Capture the Flag AI</h1>
+        <div id="controls">
+            <!-- Add controls for adjusting neural network parameters -->
+        </div>
+    </div>
+    <div id="container">
+        <div id="game-view">
+            <img id="game-view-img" src="{{ url_for('game_view') }}" alt="Game View" />
+        </div>
+        <div id="training-view">
+            <div id="nn1-view">
+                <img id="nn1-view-img" src="{{ url_for('nn1_training') }}" alt="NN1 Training Progress" />
+            </div>
+            <div id="nn2-view">
+                <img id="nn2-view-img" src="{{ url_for('nn2_training') }}" alt="NN2 Training Progress" />
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
