@@ -1,140 +1,115 @@
-from flask import Flask, render_template, send_file
+# app.py
+from flask import Flask, render_template, jsonify
 from neural_networks.environment import CaptureTheFlagEnv
-from neural_networks.visualize import visualize_game_state
-from neural_networks.visualize_training import plot_training_progress
-from neural_networks.model1 import create_model1
-from neural_networks.model2 import create_model2
-import io
-import time
+from neural_networks.model import create_model
 import numpy as np
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-from threading import Thread
+from threading import Thread, Lock
 import logging
+import os
+import tensorflow as tf
+import time
 
 app = Flask(__name__)
 
-env = CaptureTheFlagEnv(grid_size=(10, 20)) #Grid size
-model1_losses = []
-model2_losses = []
+# Configuration
+GRID_SIZE = (10, 20)
+MAX_STEPS_PER_EPISODE = 50
+EPSILON = 0.1
+GAMMA = 0.95
+LEARNING_RATE = 0.001
+UPDATE_INTERVAL = 0.1  # 100ms between updates
 
-# Configure logging
+env = CaptureTheFlagEnv(grid_size=GRID_SIZE)
+model_losses = {
+    'team1': [],
+    'team2': []
+}
+models = None
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+tf.get_logger().setLevel('ERROR')
+
+env_lock = Lock()
+model_lock = Lock()
+
+def create_models():
+    input_shape = (*GRID_SIZE, 1)
+    return {
+        'team1': create_model(input_shape, LEARNING_RATE),
+        'team2': create_model(input_shape, LEARNING_RATE)
+    }
+
 def train_model_continuously():
-    global model1_losses, model2_losses
-    input_shape = (10, 20, 1)  # Adjust input shape to match the grid size of 10x20
-    model1 = create_model1(input_shape)
-    model2 = create_model2(input_shape)
-    
+    global models, env, model_losses
+    models = create_models()
     epoch_count = 0
-    max_steps_per_episode = 50  # Limit the number of steps to prevent infinite loops
-    epsilon = 0.1  # Exploration factor
 
     while True:
-        state = env.reset()
-        state = state.reshape(1, 10, 20, 1)  # Reshape to match the grid size
+        with env_lock:
+            state = env.reset()
+        state = state.reshape(1, *GRID_SIZE, 1)
         done = False
-        epoch_loss_1 = 0
-        epoch_loss_2 = 0
+        epoch_losses = {'team1': 0, 'team2': 0}
         step_count = 0
 
-        logging.info(f"Starting new episode (Epoch {epoch_count + 1})")
-
-        while not done and step_count < max_steps_per_episode:
+        while not done and step_count < MAX_STEPS_PER_EPISODE:
             step_count += 1
 
-            # Model 1 (Team 1)
-            if np.random.rand() < epsilon:
-                action1 = np.random.choice([0, 1, 2, 3])  # Random action for exploration
-                logging.info(f"Step {step_count}: Team 1 takes random action: {action1}")
-            else:
-                action1 = np.argmax(model1.predict(state))
-                logging.info(f"Step {step_count}: Team 1 Action: {action1}")
+            for team in ['team1', 'team2']:
+                with model_lock:
+                    action = np.argmax(models[team].predict(state)) if np.random.rand() > EPSILON else np.random.choice([0, 1, 2, 3])
+                with env_lock:
+                    next_state, reward, done = env.step(team, action)
+                next_state = next_state.reshape(1, *GRID_SIZE, 1)
 
-            state, reward1, done = env.step('team1', action1)
-            state = state.reshape(1, 10, 20, 1)  # Reshape after step
-            epoch_loss_1 += np.abs(np.random.randn())  # Placeholder for actual loss computation
+                with model_lock:
+                    target = models[team].predict(state)
+                    next_q_values = models[team].predict(next_state)
+                    target[0, action] = reward + GAMMA * np.max(next_q_values)
+                    history = models[team].fit(state, target, epochs=1, verbose=0)
+                    epoch_losses[team] += history.history['loss'][0]
 
-            target1 = model1.predict(state)
-            target1[0, action1] = reward1 + 0.95 * np.max(target1)  # Update target with discounted reward
-            model1.fit(state, target1, epochs=1, verbose=0)
+                state = next_state
 
-            logging.info(f"Team 1 Position: {env.player_positions['team1']}, Reward: {reward1}, Done: {done}")
-
-            if done:
-                logging.info("Episode ended by Team 1 capturing the flag.")
-                break
-
-            # Model 2 (Team 2)
-            if np.random.rand() < epsilon:
-                action2 = np.random.choice([0, 1, 2, 3])  # Random action for exploration
-                logging.info(f"Step {step_count}: Team 2 takes random action: {action2}")
-            else:
-                action2 = np.argmax(model2.predict(state))
-                logging.info(f"Step {step_count}: Team 2 Action: {action2}")
-
-            state, reward2, done = env.step('team2', action2)
-            state = state.reshape(1, 10, 20, 1)  # Reshape after step
-            epoch_loss_2 += np.abs(np.random.randn())  # Placeholder for actual loss computation
-
-            target2 = model2.predict(state)
-            target2[0, action2] = reward2 + 0.95 * np.max(target2)  # Update target with discounted reward
-            model2.fit(state, target2, epochs=1, verbose=0)
-
-            logging.info(f"Team 2 Position: {env.player_positions['team2']}, Reward: {reward2}, Done: {done}")
+                if done:
+                    break
 
             if done:
-                logging.info("Episode ended by Team 2 capturing the flag.")
                 break
 
-        model1_losses.append(epoch_loss_1)
-        model2_losses.append(epoch_loss_2)
+        with model_lock:
+            for team in ['team1', 'team2']:
+                model_losses[team].append(epoch_losses[team])
+                model_losses[team] = model_losses[team][-100:]  # Keep only last 100 losses
 
-        # Limit the number of stored losses to avoid memory issues
-        model1_losses = model1_losses[-100:]
-        model2_losses = model2_losses[-100:]
-
-        logging.info(f"Epoch {epoch_count + 1} completed. Losses - Team 1: {epoch_loss_1}, Team 2: {epoch_loss_2}")
         epoch_count += 1
-
-        if step_count >= max_steps_per_episode:
-            logging.warning(f"Max steps reached in Epoch {epoch_count}. Episode terminated to prevent infinite loop.")
-        
-        time.sleep(1)  # Simulate time delay for training
-
+        time.sleep(UPDATE_INTERVAL)
 
 @app.route('/')
 def index():
     return render_template('index.html')
 
-@app.route('/game-view')
-def game_view():
-    try:
-        fig = visualize_game_state(env.grid, env.team1_points, env.team2_points)
-        output = io.BytesIO()
-        FigureCanvas(fig).print_png(output)
-        return send_file(io.BytesIO(output.getvalue()), mimetype='image/png')
-    except Exception as e:
-        logging.error(f"Error generating game view: {e}")
-        return "An error occurred while generating the game view.", 500
+@app.route('/game-state')
+def game_state():
+    with env_lock:
+        return jsonify({
+            'grid': env.grid.tolist(),
+            'team1_points': env.team1_points,
+            'team2_points': env.team2_points
+        })
 
+@app.route('/training-data')
+def training_data():
+    with model_lock:
+        return jsonify(model_losses)
 
-@app.route('/nn1-training')
-def nn1_training():
-    fig = plot_training_progress(model1_losses, title="Training Progress for Model 1")
-    output = io.BytesIO()
-    FigureCanvas(fig).print_png(output)
-    return send_file(io.BytesIO(output.getvalue()), mimetype='image/png')
-
-@app.route('/nn2-training')
-def nn2_training():
-    fig = plot_training_progress(model2_losses, title="Training Progress for Model 2")
-    output = io.BytesIO()
-    FigureCanvas(fig).print_png(output)
-    return send_file(io.BytesIO(output.getvalue()), mimetype='image/png')
+def run_flask():
+    app.run(debug=False, use_reloader=False, port=5001)
 
 if __name__ == "__main__":
-    training_thread = Thread(target=train_model_continuously)
-    training_thread.start()
-
-    app.run(debug=True)
+    flask_thread = Thread(target=run_flask)
+    flask_thread.start()
+    time.sleep(2)
+    train_model_continuously()

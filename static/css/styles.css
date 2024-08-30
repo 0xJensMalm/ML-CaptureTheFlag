@@ -6,44 +6,90 @@ body {
     flex-direction: column;
     height: 100vh;
     width: 100vw;
+    background-color: #121212;
+    color: #f1f1f1;
+    overflow: hidden;
 }
 
 #navbar {
-    background-color: #333;
-    color: white;
-    padding: 15px;
+    background-color: #1f1f1f;
+    color: #f1f1f1;
+    padding: 10px 20px;
     text-align: center;
+}
+
+#score-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+#score-model1, #score-model2 {
+    font-size: 18px;
+}
+
+h1 {
+    margin: 0;
+    font-size: 24px;
 }
 
 #container {
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: calc(100vh - 60px);
     width: 100%;
+    background-color: #1e1e1e;
+    overflow: hidden;
 }
 
-#game-view {
+#game-view-container {
     flex: 1;
-    background-color: #f4f4f4;
+    background-color: #1e1e1e;
     display: flex;
     justify-content: center;
     align-items: center;
+    padding: 10px;
+    box-sizing: border-box;
+    min-height: 0;
+    overflow: hidden;
 }
 
-#training-view {
-    display: flex;
-    flex: 1;
-    background-color: #ccc;
+#game-view {
     width: 100%;
+    height: 100%;
+}
+
+#monitoring {
+    display: flex;
+    justify-content: space-between;
+    align-items: stretch;
+    height: 45%;
+    padding: 10px;
+    box-sizing: border-box;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+#nn1-view-container, #nn2-view-container {
+    flex: 1;
+    padding: 10px;
+    background-color: #2a2a2a;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-right: 10px;
+    overflow: hidden;
+    aspect-ratio: 1 / 1;
 }
 
 #nn1-view, #nn2-view {
-    flex: 1;
-    padding: 20px;
-    width: 50%;
+    width: 100%;
+    height: 100%;
 }
 
-img {
-    max-width: 100%;
-    height: auto;
+#nn2-view-container {
+    margin-right: 0;
 }

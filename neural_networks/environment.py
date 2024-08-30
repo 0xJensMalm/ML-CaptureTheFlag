@@ -6,15 +6,15 @@ class CaptureTheFlagEnv:
         self.num_obstacles = num_obstacles
         self.team1_points = 0
         self.team2_points = 0
-        self.flag_captured = False  # Initialize flag_captured attribute
+        self.flag_captured = False
         self.reset()
 
     def reset(self):
-        self.grid = np.zeros(self.grid_size)  # Empty grid
+        self.grid = np.zeros(self.grid_size)
         self.place_flag()
-        self.place_static_bases_and_obstacles()  # Static base structures
+        self.place_static_bases_and_obstacles()
         self.place_players()
-        self.flag_captured = False  # Reset the flag_captured status when environment resets
+        self.flag_captured = False
         return self.grid
 
     def place_flag(self):
