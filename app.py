@@ -1,5 +1,3 @@
-# app.py
-
 from flask import Flask, render_template, send_file
 from neural_networks.environment import CaptureTheFlagEnv
 from neural_networks.visualize import visualize_game_state
@@ -15,19 +13,16 @@ import logging
 
 app = Flask(__name__)
 
-env = CaptureTheFlagEnv(grid_size=(10, 10))
+env = CaptureTheFlagEnv(grid_size=(10, 20)) #Grid size
 model1_losses = []
 model2_losses = []
-
-import logging
-import numpy as np
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 def train_model_continuously():
     global model1_losses, model2_losses
-    input_shape = (10, 10, 1)  # Adjust input shape to match the input of the neural networks
+    input_shape = (10, 20, 1)  # Adjust input shape to match the grid size of 10x20
     model1 = create_model1(input_shape)
     model2 = create_model2(input_shape)
     
@@ -37,7 +32,7 @@ def train_model_continuously():
 
     while True:
         state = env.reset()
-        state = state.reshape(1, 10, 10, 1)  # Add channel dimension for the input
+        state = state.reshape(1, 10, 20, 1)  # Reshape to match the grid size
         done = False
         epoch_loss_1 = 0
         epoch_loss_2 = 0
@@ -57,7 +52,7 @@ def train_model_continuously():
                 logging.info(f"Step {step_count}: Team 1 Action: {action1}")
 
             state, reward1, done = env.step('team1', action1)
-            state = state.reshape(1, 10, 10, 1)  # Reshape after step
+            state = state.reshape(1, 10, 20, 1)  # Reshape after step
             epoch_loss_1 += np.abs(np.random.randn())  # Placeholder for actual loss computation
 
             target1 = model1.predict(state)
@@ -79,7 +74,7 @@ def train_model_continuously():
                 logging.info(f"Step {step_count}: Team 2 Action: {action2}")
 
             state, reward2, done = env.step('team2', action2)
-            state = state.reshape(1, 10, 10, 1)  # Reshape after step
+            state = state.reshape(1, 10, 20, 1)  # Reshape after step
             epoch_loss_2 += np.abs(np.random.randn())  # Placeholder for actual loss computation
 
             target2 = model2.predict(state)
@@ -114,10 +109,15 @@ def index():
 
 @app.route('/game-view')
 def game_view():
-    fig = visualize_game_state(env.grid)
-    output = io.BytesIO()
-    FigureCanvas(fig).print_png(output)
-    return send_file(io.BytesIO(output.getvalue()), mimetype='image/png')
+    try:
+        fig = visualize_game_state(env.grid, env.team1_points, env.team2_points)
+        output = io.BytesIO()
+        FigureCanvas(fig).print_png(output)
+        return send_file(io.BytesIO(output.getvalue()), mimetype='image/png')
+    except Exception as e:
+        logging.error(f"Error generating game view: {e}")
+        return "An error occurred while generating the game view.", 500
+
 
 @app.route('/nn1-training')
 def nn1_training():
