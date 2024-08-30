@@ -26,6 +26,12 @@ model_losses = {
 }
 models = None
 
+# Action heatmap data
+action_heatmap = {
+    'team1': np.zeros((GRID_SIZE[0], GRID_SIZE[1], 4)),
+    'team2': np.zeros((GRID_SIZE[0], GRID_SIZE[1], 4))
+}
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -33,6 +39,7 @@ tf.get_logger().setLevel('ERROR')
 
 env_lock = Lock()
 model_lock = Lock()
+heatmap_lock = Lock()
 
 def create_models():
     input_shape = (*GRID_SIZE, 1)
@@ -42,7 +49,7 @@ def create_models():
     }
 
 def train_model_continuously():
-    global models, env, model_losses
+    global models, env, model_losses, action_heatmap
     models = create_models()
     epoch_count = 0
 
@@ -60,6 +67,12 @@ def train_model_continuously():
             for team in ['team1', 'team2']:
                 with model_lock:
                     action = np.argmax(models[team].predict(state)) if np.random.rand() > EPSILON else np.random.choice([0, 1, 2, 3])
+                
+                # Update action heatmap
+                with heatmap_lock:
+                    player_pos = env.player_positions[team]
+                    action_heatmap[team][player_pos[0], player_pos[1], action] += 1
+
                 with env_lock:
                     next_state, reward, done = env.step(team, action)
                 next_state = next_state.reshape(1, *GRID_SIZE, 1)
@@ -104,6 +117,14 @@ def game_state():
 def training_data():
     with model_lock:
         return jsonify(model_losses)
+
+@app.route('/action-heatmap')
+def get_action_heatmap():
+    with heatmap_lock:
+        return jsonify({
+            'team1': action_heatmap['team1'].tolist(),
+            'team2': action_heatmap['team2'].tolist()
+        })
 
 def run_flask():
     app.run(debug=False, use_reloader=False, port=5001)

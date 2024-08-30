@@ -11,6 +11,8 @@
         const UPDATE_INTERVAL = 100; // 100ms
 
         let gameChart, team1Chart, team2Chart;
+        let showHeatmap = false;
+        let heatmapCanvas, heatmapCtx;
 
         function initCharts() {
             const gameCtx = document.getElementById('game-view').getContext('2d');
@@ -75,9 +77,14 @@
                     animation: false
                 }
             });
+
+            // Initialize heatmap canvas
+            heatmapCanvas = document.getElementById('heatmap-canvas');
+            heatmapCtx = heatmapCanvas.getContext('2d');
         }
 
-        function updateGameView(grid) {
+        function updateGameView(gameState, heatmapData) {
+            const grid = gameState.grid;
             const data = [];
             const colors = [];
             for (let i = 0; i < grid.length; i++) {
@@ -95,6 +102,51 @@
             gameChart.data.datasets[0].data = data;
             gameChart.data.datasets[0].pointBackgroundColor = colors;
             gameChart.update();
+
+            if (showHeatmap) {
+                drawSimpleHeatmap(grid, heatmapData);
+            } else {
+                clearHeatmap();
+            }
+        }
+
+        function drawSimpleHeatmap(grid, heatmapData) {
+            clearHeatmap();
+            const cellWidth = heatmapCanvas.width / grid[0].length;
+            const cellHeight = heatmapCanvas.height / grid.length;
+
+            // Combine visit data from both teams
+            const combinedHeatmap = grid.map((row, i) =>
+                row.map((_, j) => {
+                    const team1Visits = heatmapData.team1[i][j].reduce((a, b) => a + b, 0);
+                    const team2Visits = heatmapData.team2[i][j].reduce((a, b) => a + b, 0);
+                    return team1Visits + team2Visits;
+                })
+            );
+
+            const maxVisits = Math.max(...combinedHeatmap.flat());
+
+            for (let i = 0; i < grid.length; i++) {
+                for (let j = 0; j < grid[i].length; j++) {
+                    if (grid[i][j] !== 1) { // Draw heatmap for all cells except obstacles
+                        const totalVisits = combinedHeatmap[i][j];
+                        const visitRatio = totalVisits / maxVisits;
+
+                        // Color interpolation: red (low visits) to green (high visits)
+                        const red = Math.floor(255 * (1 - visitRatio));
+                        const green = Math.floor(255 * visitRatio);
+
+                        // Opacity: more opaque for low visits, less opaque for high visits
+                        const opacity = Math.max(0.1, 1 - (visitRatio * 0.7)); // Minimum opacity of 0.1
+
+                        heatmapCtx.fillStyle = `rgba(${red}, ${green}, 0, ${opacity})`;
+                        heatmapCtx.fillRect(j * cellWidth, i * cellHeight, cellWidth, cellHeight);
+                    }
+                }
+            }
+        }
+        function clearHeatmap() {
+            heatmapCtx.clearRect(0, 0, heatmapCanvas.width, heatmapCanvas.height);
         }
 
         function updateTrainingCharts(losses) {
@@ -113,20 +165,23 @@
         }
 
         function refreshData() {
-            fetch('/game-state')
-                .then(response => response.json())
-                .then(data => {
-                    updateGameView(data.grid);
-                    updateScores(data.team1_points, data.team2_points);
-                })
-                .catch(error => console.error('Error:', error));
+            Promise.all([
+                fetch('/game-state').then(response => response.json()),
+                fetch('/training-data').then(response => response.json()),
+                fetch('/action-heatmap').then(response => response.json())
+            ]).then(([gameState, trainingData, heatmapData]) => {
+                updateGameView(gameState, heatmapData);
+                updateScores(gameState.team1_points, gameState.team2_points);
+                updateTrainingCharts(trainingData);
+            }).catch(error => console.error('Error:', error));
+        }
 
-            fetch('/training-data')
-                .then(response => response.json())
-                .then(data => {
-                    updateTrainingCharts(data);
-                })
-                .catch(error => console.error('Error:', error));
+        function toggleHeatmap() {
+            showHeatmap = !showHeatmap;
+            document.getElementById('heatmap-toggle').textContent = showHeatmap ? 'Hide Heatmap' : 'Show Heatmap';
+            if (!showHeatmap) {
+                clearHeatmap();
+            }
         }
 
         function startUpdates() {
@@ -145,10 +200,12 @@
             <h1>Capture the Flag AI</h1>
             <div id="score-model2">Team 2 Score: <span id="model2-score">0</span></div>
         </div>
+        <button id="heatmap-toggle" onclick="toggleHeatmap()">Show Heatmap</button>
     </div>
     <div id="container">
         <div id="game-view-container">
             <canvas id="game-view"></canvas>
+            <canvas id="heatmap-canvas"></canvas>
         </div>
         <div id="monitoring">
             <div id="nn1-view-container">
