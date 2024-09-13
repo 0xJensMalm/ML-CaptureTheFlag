@@ -1,11 +1,12 @@
 import pygame
-
 class Flag:
     def __init__(self, x, y, grid_size):
         self.x = x
         self.y = y
         self.grid_size = grid_size
         self.carried_by = None  # Agent who has the flag
+        self.last_steal_time = 0  # Initialize last steal time
+        self.steal_cooldown = 3  # Cooldown period in seconds
 
     def draw(self, surface):
         if not self.carried_by:
@@ -21,6 +22,7 @@ class Flag:
         self.x = x
         self.y = y
         self.carried_by = None
+        self.last_steal_time = 0  # Reset last steal time
 
 class Obstacle:
     def __init__(self, x, y, grid_size):

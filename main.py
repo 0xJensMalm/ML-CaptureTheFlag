@@ -1,5 +1,6 @@
 import pygame
 import sys
+import time
 from agents import AgentA, AgentB
 from game_objects import Flag, Obstacle, draw_grid, draw_scoring_zones
 from visualization import draw_visualizations
@@ -63,7 +64,7 @@ simulation_speed = 60  # Frames per second
 
 episode = 0  # Keep track of episodes
 
-# Speed control buttons
+# Speed control buttons (assuming you have them from previous code)
 speed_buttons = [
     {'label': '0x', 'speed': 0, 'rect': pygame.Rect(WIDTH // 2 - 110, 10, 40, 30)},
     {'label': '1x', 'speed': 60, 'rect': pygame.Rect(WIDTH // 2 - 60, 10, 40, 30)},
